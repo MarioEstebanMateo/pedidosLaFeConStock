@@ -5,10 +5,11 @@ Sistema web para gestión de pedidos con control de stock para La Fe. Permite a 
 ## 🚀 Características
 
 ### Para Usuarios
+
 - **Selección de Sucursal**: Elige entre Centro y CABA
 - **Gestión de Stock Actual**: Ingresa el stock actual de cada producto con botones +/-
 - **Cálculo Automático de Pedidos**: El sistema calcula automáticamente cuánto necesitas pedir (Stock Mínimo - Stock Actual)
-- **Múltiples Categorías**: 
+- **Múltiples Categorías**:
   - Helados (con opción de ordenar alfabéticamente)
   - Palitos
   - Postres
@@ -26,6 +27,7 @@ Sistema web para gestión de pedidos con control de stock para La Fe. Permite a 
 - **Observaciones**: Campo especial para agregar notas (disponible para Centro)
 
 ### Panel Administrativo
+
 - **Gestión de Productos**: Agregar, editar o eliminar productos
 - **Control de Stock Mínimo**: Configura el stock mínimo para cada producto
 - **Visibilidad de Productos**: Oculta/muestra productos sin necesidad de eliminarlos
@@ -50,12 +52,14 @@ Sistema web para gestión de pedidos con control de stock para La Fe. Permite a 
 ## 🔧 Instalación
 
 1. **Clonar el repositorio**
+
 ```bash
 git clone https://github.com/MarioEstebanMateo/pedidosLaFeConStock.git
 cd pedidosLaFeConStock
 ```
 
 2. **Instalar dependencias**
+
 ```bash
 npm install
 ```
@@ -65,21 +69,22 @@ npm install
 Crea un archivo `src/db/SupabaseClient.jsx` con tu configuración de Supabase:
 
 ```javascript
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = 'TU_SUPABASE_URL'
-const supabaseAnonKey = 'TU_SUPABASE_ANON_KEY'
+const supabaseUrl = "TU_SUPABASE_URL";
+const supabaseAnonKey = "TU_SUPABASE_ANON_KEY";
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export default supabase
+export default supabase;
 ```
 
 4. **Configurar la base de datos**
 
 Ejecuta el script SQL proporcionado en `product-and-order-management-system-1747963838997.sql` o crea las siguientes tablas:
 
-**Tablas de productos** (para cada categoría, crear versión _centro y _caba):
+**Tablas de productos** (para cada categoría, crear versión \_centro y \_caba):
+
 ```sql
 CREATE TABLE helados_centro (
   id SERIAL PRIMARY KEY,
@@ -88,11 +93,12 @@ CREATE TABLE helados_centro (
   visible BOOLEAN DEFAULT true
 );
 
--- Repetir para: palitos, postres, crocker, dieteticos, buffet, 
+-- Repetir para: palitos, postres, crocker, dieteticos, buffet,
 -- softs, dulces, paletas, bites, barritas, termicos
 ```
 
 **Tabla de sucursales**:
+
 ```sql
 CREATE TABLE sucursales (
   id SERIAL PRIMARY KEY,
@@ -103,6 +109,7 @@ INSERT INTO sucursales (title) VALUES ('Centro'), ('CABA');
 ```
 
 **Tabla de administradores**:
+
 ```sql
 CREATE TABLE admin_centro (
   id SERIAL PRIMARY KEY,
@@ -112,6 +119,7 @@ CREATE TABLE admin_centro (
 ```
 
 **Tabla de pedidos**:
+
 ```sql
 CREATE TABLE pedidos (
   id SERIAL PRIMARY KEY,
@@ -123,6 +131,7 @@ CREATE TABLE pedidos (
 ```
 
 5. **Iniciar el servidor de desarrollo**
+
 ```bash
 npm run dev
 ```
@@ -167,6 +176,7 @@ La aplicación estará disponible en `http://localhost:5173`
 ## 🌐 Despliegue
 
 La aplicación puede desplegarse en cualquier servicio de hosting estático como:
+
 - Vercel
 - Netlify
 - GitHub Pages
