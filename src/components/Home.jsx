@@ -83,7 +83,7 @@ const Home = () => {
       try {
         // Fetch all product categories in parallel with the suffix
         const productPromises = PRODUCT_CATEGORIES.map(category => 
-          supabase.from(category.name + tableSuffix).select('id, title, stock_min')
+          supabase.from(category.name + tableSuffix).select('id, title, stock_min, visible')
         )
         
         const productResults = await Promise.all(productPromises)
@@ -275,8 +275,13 @@ const Home = () => {
     
     if (!categoryProducts || categoryProducts.length === 0) return null
     
+    // Filter only visible products
+    const visibleProducts = categoryProducts.filter(p => p.visible !== false)
+    
+    if (visibleProducts.length === 0) return null
+    
     // Sort products based on the state
-    const sortedProducts = [...categoryProducts]
+    const sortedProducts = [...visibleProducts]
     if (sortAlphabetically[categoryName]) {
       sortedProducts.sort((a, b) => a.title.localeCompare(b.title))
     }
@@ -408,14 +413,7 @@ const Home = () => {
       </div>
       
       {/* Render product sections based on defined categories */}
-      {PRODUCT_CATEGORIES.filter(category => {
-        // Only show "termicos" when CABA is selected
-        if (category.name === 'termicos') {
-          const selectedSuc = sucursales.find(s => s.id.toString() === selectedSucursal);
-          return selectedSuc?.title === 'CABA';
-        }
-        return true;
-      }).map(category => renderProductSection(category))}
+      {PRODUCT_CATEGORIES.map(category => renderProductSection(category))}
       
       <div className="mb-6 text-center">
         <button 

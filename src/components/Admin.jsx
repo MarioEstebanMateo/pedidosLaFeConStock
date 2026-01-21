@@ -36,6 +36,7 @@ const Admin = () => {
   const [products, setProducts] = useState([]);
   const [newProductTitle, setNewProductTitle] = useState('');
   const [newProductStockMin, setNewProductStockMin] = useState(0);
+  const [newProductVisible, setNewProductVisible] = useState(true);
   
   // Check authentication when component mounts
   useEffect(() => {
@@ -138,7 +139,8 @@ const Admin = () => {
         .from(tableName)
         .insert([{ 
           title: newProductTitle.trim(),
-          stock_min: newProductStockMin 
+          stock_min: newProductStockMin,
+          visible: newProductVisible
         }])
         .select();
       
@@ -147,6 +149,7 @@ const Admin = () => {
       setProducts([...products, data[0]]);
       setNewProductTitle('');
       setNewProductStockMin(0);
+      setNewProductVisible(true);
       
       Swal.fire({
         icon: 'success',
@@ -167,25 +170,27 @@ const Admin = () => {
     }
   };
   
-  const handleEditProduct = async (id, currentTitle, currentStockMin) => {
+  const handleEditProduct = async (id, currentTitle, currentStockMin, currentVisible) => {
     const { value: formValues } = await Swal.fire({
       title: 'Editar producto',
       html:
         `<input id="swal-input-title" class="swal2-input" value="${currentTitle}" placeholder="Nombre del producto">` +
-        `<input id="swal-input-stock" type="number" class="swal2-input" value="${currentStockMin || 0}" placeholder="Stock mínimo">`,
+        `<input id="swal-input-stock" type="number" class="swal2-input" value="${currentStockMin || 0}" placeholder="Stock mínimo">` +
+        `<div style="margin: 20px 0;"><label style="display: flex; align-items: center; justify-content: center; gap: 10px;"><input type="checkbox" id="swal-input-visible" ${currentVisible !== false ? 'checked' : ''}><span>Visible en el Home</span></label></div>`,
       focusConfirm: false,
       showCancelButton: true,
       preConfirm: () => {
         const title = document.getElementById('swal-input-title').value;
         const stockMin = document.getElementById('swal-input-stock').value;
+        const visible = document.getElementById('swal-input-visible').checked;
         if (!title) {
           Swal.showValidationMessage('Debes ingresar un nombre');
         }
-        return { title, stockMin: parseInt(stockMin) || 0 };
+        return { title, stockMin: parseInt(stockMin) || 0, visible };
       }
     });
     
-    if (formValues && (formValues.title !== currentTitle || formValues.stockMin !== currentStockMin)) {
+    if (formValues && (formValues.title !== currentTitle || formValues.stockMin !== currentStockMin || formValues.visible !== currentVisible)) {
       try {
         setIsLoading(true);
         const tableName = currentCategory + tableSuffix;
@@ -194,14 +199,15 @@ const Admin = () => {
           .from(tableName)
           .update({ 
             title: formValues.title,
-            stock_min: formValues.stockMin 
+            stock_min: formValues.stockMin,
+            visible: formValues.visible
           })
           .eq('id', id);
         
         if (error) throw error;
         
         setProducts(products.map(product => 
-          product.id === id ? { ...product, title: formValues.title, stock_min: formValues.stockMin } : product
+          product.id === id ? { ...product, title: formValues.title, stock_min: formValues.stockMin, visible: formValues.visible } : product
         ));
         
         Swal.fire({
@@ -220,6 +226,41 @@ const Admin = () => {
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+  
+  const handleToggleVisible = async (id, currentVisible) => {
+    try {
+      setIsLoading(true);
+      const tableName = currentCategory + tableSuffix;
+      const newVisible = !currentVisible;
+      
+      const { error } = await supabase
+        .from(tableName)
+        .update({ visible: newVisible })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      setProducts(products.map(product => 
+        product.id === id ? { ...product, visible: newVisible } : product
+      ));
+      
+      Swal.fire({
+        icon: 'success',
+        title: newVisible ? 'Producto visible' : 'Producto oculto',
+        showConfirmButton: false,
+        timer: 1000
+      });
+    } catch (error) {
+      console.error('Error toggling visibility:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo cambiar la visibilidad del producto'
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -364,28 +405,39 @@ const Admin = () => {
           </div>
         </div>
         
-        <div className="mb-6 flex gap-2">
-          <input
-            type="text"
-            value={newProductTitle}
-            onChange={(e) => setNewProductTitle(e.target.value)}
-            className="flex-1 p-2 border border-gray-300 rounded"
-            placeholder={`Nuevo ${PRODUCT_CATEGORIES.find(c => c.name === currentCategory).displayName.slice(0, -1)}...`}
-          />
-          <input
-            type="number"
-            value={newProductStockMin}
-            onChange={(e) => setNewProductStockMin(parseInt(e.target.value) || 0)}
-            className="w-32 p-2 border border-gray-300 rounded"
-            placeholder="Stock mín"
-            min="0"
-          />
-          <button
-            onClick={handleAddProduct}
-            className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded transition-colors"
-          >
-            Agregar
-          </button>
+        <div className="mb-6">
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={newProductTitle}
+              onChange={(e) => setNewProductTitle(e.target.value)}
+              className="flex-1 p-2 border border-gray-300 rounded"
+              placeholder={`Nuevo ${PRODUCT_CATEGORIES.find(c => c.name === currentCategory).displayName.slice(0, -1)}...`}
+            />
+            <input
+              type="number"
+              value={newProductStockMin}
+              onChange={(e) => setNewProductStockMin(parseInt(e.target.value) || 0)}
+              className="w-32 p-2 border border-gray-300 rounded"
+              placeholder="Stock mín"
+              min="0"
+            />
+            <button
+              onClick={handleAddProduct}
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded transition-colors"
+            >
+              Agregar
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={newProductVisible}
+              onChange={(e) => setNewProductVisible(e.target.checked)}
+              className="w-4 h-4"
+            />
+            Visible en el Home
+          </label>
         </div>
         
         <div className="overflow-x-auto">
@@ -395,19 +447,32 @@ const Admin = () => {
                 <th className="py-3 px-4 text-left">ID</th>
                 <th className="py-3 px-4 text-left">Nombre</th>
                 <th className="py-3 px-4 text-center">Stock Mínimo</th>
+                <th className="py-3 px-4 text-center">Visible</th>
                 <th className="py-3 px-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {products.length > 0 ? (
                 products.map((product) => (
-                  <tr key={product.id} className="border-b hover:bg-gray-50">
+                  <tr key={product.id} className={`border-b hover:bg-gray-50 ${product.visible === false ? 'bg-gray-100' : ''}`}>
                     <td className="py-2 px-4">{product.id}</td>
                     <td className="py-2 px-4">{product.title}</td>
                     <td className="py-2 px-4 text-center">{product.stock_min || 0}</td>
                     <td className="py-2 px-4 text-center">
                       <button
-                        onClick={() => handleEditProduct(product.id, product.title, product.stock_min)}
+                        onClick={() => handleToggleVisible(product.id, product.visible)}
+                        className={`py-1 px-3 rounded text-sm font-medium transition-colors ${
+                          product.visible !== false 
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                        }`}
+                      >
+                        {product.visible !== false ? '👁️ Visible' : '🚫 Oculto'}
+                      </button>
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      <button
+                        onClick={() => handleEditProduct(product.id, product.title, product.stock_min, product.visible)}
                         className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded mr-2 text-sm transition-colors"
                       >
                         Editar
@@ -423,7 +488,7 @@ const Admin = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="py-4 text-center text-gray-500">
+                  <td colSpan="5" className="py-4 text-center text-gray-500">
                     No hay productos en esta categoría
                   </td>
                 </tr>
