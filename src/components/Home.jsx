@@ -38,8 +38,8 @@ const Home = () => {
   const [selectedSucursal, setSelectedSucursal] = useState(orderData.sucursalId || '')
   const [orderDate, setOrderDate] = useState(orderData.orderDate || new Date().toISOString().split('T')[0])
   
-  // State for current table suffix based on selected sucursal
-  const [tableSuffix, setTableSuffix] = useState('')
+  // State for current table suffix based on selected sucursal - initialize from context
+  const [tableSuffix, setTableSuffix] = useState(orderData.tableSuffix || '')
   
   // Unified state management for all products and stock quantities
   const [products, setProducts] = useState({})
