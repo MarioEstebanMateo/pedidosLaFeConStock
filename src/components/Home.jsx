@@ -8,6 +8,7 @@ import logoLaFe from '../assets/img/logo-lafe.png'
 import WhatsappHelp from './WhatsappHelp'
 
 // Define all product categories for consistent management
+// Base names without suffix - suffix will be determined by selected sucursal
 const PRODUCT_CATEGORIES = [
   { name: 'helados', displayName: 'Helados' },
   { name: 'palitos', displayName: 'Palitos' },
@@ -23,6 +24,12 @@ const PRODUCT_CATEGORIES = [
   { name: 'termicos', displayName: 'Térmicos' }
 ]
 
+// Map sucursal titles to table suffixes
+const SUCURSAL_TABLE_SUFFIX = {
+  'Centro': '_centro',
+  'CABA': '_caba'
+}
+
 const Home = () => {
   const navigate = useNavigate()
   const { orderData, updateOrderData } = useOrderContext()
@@ -31,15 +38,12 @@ const Home = () => {
   const [selectedSucursal, setSelectedSucursal] = useState(orderData.sucursalId || '')
   const [orderDate, setOrderDate] = useState(orderData.orderDate || new Date().toISOString().split('T')[0])
   
-  // Add state for custom client
-  const [customClientName, setCustomClientName] = useState(orderData.customClientName || '')
-  const [showCustomClientField, setShowCustomClientField] = useState(
-    orderData.sucursalId === 'custom' || false
-  )
+  // State for current table suffix based on selected sucursal
+  const [tableSuffix, setTableSuffix] = useState('')
   
-  // Unified state management for all products and quantities
+  // Unified state management for all products and stock quantities
   const [products, setProducts] = useState({})
-  const [quantities, setQuantities] = useState({})
+  const [stockActual, setStockActual] = useState({}) // Stock actual que ingresa el cliente
   const [observaciones, setObservaciones] = useState(orderData.observaciones || '')
   
   // State for sorting products alphabetically - initialize from context
@@ -54,7 +58,7 @@ const Home = () => {
       }
     })
 
-    const fetchData = async () => {
+    const fetchSucursales = async () => {
       try {
         // Fetch sucursales
         const { data: sucursalesData, error: sucursalesError } = await supabase
@@ -63,57 +67,82 @@ const Home = () => {
           
         if (sucursalesError) throw sucursalesError
         setSucursales(sucursalesData)
+      } catch (error) {
+        console.error('Error fetching sucursales:', error)
+      }
+    }
 
-        // Fetch all product categories in parallel
+    fetchSucursales()
+  }, [])
+  
+  // Load products when sucursal is selected and table suffix is determined
+  useEffect(() => {
+    if (!tableSuffix) return
+    
+    const fetchProducts = async () => {
+      try {
+        // Fetch all product categories in parallel with the suffix
         const productPromises = PRODUCT_CATEGORIES.map(category => 
-          supabase.from(category.name).select('*')
+          supabase.from(category.name + tableSuffix).select('id, title, stock_min')
         )
         
         const productResults = await Promise.all(productPromises)
         
         // Process results into a unified structure
         const newProducts = {}
-        const newQuantities = {}
+        const newStockActual = {}
         
         productResults.forEach((result, index) => {
           const categoryName = PRODUCT_CATEGORIES[index].name
           
           if (result.error) {
-            console.error(`Error fetching ${categoryName}:`, result.error)
+            console.error(`Error fetching ${categoryName}${tableSuffix}:`, result.error)
             return
           }
           
           newProducts[categoryName] = result.data.sort((a, b) => a.id - b.id)
           
-          // Initialize quantities from context if available, otherwise set to 0
-          if (!newQuantities[categoryName]) newQuantities[categoryName] = {}
+          // Initialize stock actual from context if available, otherwise set to 0
+          if (!newStockActual[categoryName]) newStockActual[categoryName] = {}
           
-          const contextQuantities = orderData[`${categoryName}Quantities`] || {}
+          const contextStockActual = orderData[`${categoryName}StockActual`] || {}
           
           result.data.forEach(item => {
-            newQuantities[categoryName][item.id] = contextQuantities[item.id] || 0
+            newStockActual[categoryName][item.id] = contextStockActual[item.id] || 0
           })
         })
         
         setProducts(newProducts)
-        setQuantities(newQuantities)
+        setStockActual(newStockActual)
       } catch (error) {
-        console.error('Error fetching data:', error)
+        console.error('Error fetching products:', error)
       }
     }
+    
+    fetchProducts()
+  }, [tableSuffix])
 
-    fetchData()
-  }, [])
-
-  // Generic handler for quantity changes
-  const handleQuantityChange = (category, id, increment) => {
-    setQuantities(prev => ({
+  // Generic handler for stock actual changes
+  const handleStockActualChange = (category, id, increment) => {
+    setStockActual(prev => ({
       ...prev,
       [category]: {
         ...prev[category],
         [id]: Math.max(0, (prev[category]?.[id] || 0) + (increment ? 1 : -1))
       }
     }))
+  }
+  
+  // Calculate order quantity for a product (stock_min - stock_actual)
+  const calculateOrderQuantity = (category, productId) => {
+    const product = products[category]?.find(p => p.id === productId)
+    if (!product) return 0
+    
+    const stockMin = product.stock_min || 0
+    const currentStock = stockActual[category]?.[productId] || 0
+    const orderQty = stockMin - currentStock
+    
+    return Math.max(0, orderQty) // Never negative
   }
   
   // Handler to toggle alphabetical sorting for a category
@@ -139,41 +168,30 @@ const Home = () => {
   // Handle sucursal selection
   const handleSucursalChange = (e) => {
     const selectedId = e.target.value;
-    if (selectedId === 'custom') {
-      // For custom client selection
-      setSelectedSucursal('custom')
-      setShowCustomClientField(true)
-      updateOrderData({ 
-        sucursalId: 'custom',
-        sucursalTitle: customClientName || 'Cliente Varios',
-        isCustomClient: true
-      })
-    } else {
-      const selectedTitle = sucursales.find(s => s.id.toString() === selectedId)?.title || '';
-      setSelectedSucursal(selectedId);
-      setShowCustomClientField(false);
-      updateOrderData({ 
-        sucursalId: selectedId,
-        sucursalTitle: selectedTitle,
-        isCustomClient: false,
-        customClientName: ''
-      });
-      // Reset observaciones if not centro
-      if (selectedTitle !== 'Centro') {
-        setObservaciones('');
-        updateOrderData({ observaciones: '' });
-      }
+    const selectedSucursal = sucursales.find(s => s.id.toString() === selectedId);
+    const selectedTitle = selectedSucursal?.title || '';
+    
+    setSelectedSucursal(selectedId);
+    
+    // Determine table suffix based on sucursal title
+    const suffix = SUCURSAL_TABLE_SUFFIX[selectedTitle] || '';
+    setTableSuffix(suffix);
+    
+    updateOrderData({ 
+      sucursalId: selectedId,
+      sucursalTitle: selectedTitle,
+      tableSuffix: suffix
+    });
+    
+    // Reset observaciones if not centro
+    if (selectedTitle !== 'Centro') {
+      setObservaciones('');
+      updateOrderData({ observaciones: '' });
     }
-  }
-  
-  // Handle custom client name changes
-  const handleCustomClientChange = (e) => {
-    const name = e.target.value
-    setCustomClientName(name)
-    updateOrderData({
-      customClientName: name,
-      sucursalTitle: name || 'Cliente Varios'
-    })
+    
+    // Reset products and stock when changing sucursal
+    setProducts({});
+    setStockActual({});
   }
 
   // Handle observaciones change
@@ -196,27 +214,16 @@ const Home = () => {
       return
     }
     
-    // For custom client, validate that a name was entered
-    if (selectedSucursal === 'custom' && !customClientName.trim()) {
-      Swal.fire({
-        title: 'Nombre de cliente requerido',
-        text: 'Por favor ingresa el nombre del cliente',
-        icon: 'warning',
-        confirmButtonText: 'Entendido',
-        confirmButtonColor: '#3498db'
-      })
-      return
-    }
+    // Check if any products have calculated orders > 0
+    const hasAnyOrders = PRODUCT_CATEGORIES.some(category => {
+      const categoryProducts = products[category.name] || []
+      return categoryProducts.some(product => calculateOrderQuantity(category.name, product.id) > 0)
+    })
     
-    // Check if any products are selected
-    const hasAnyProducts = PRODUCT_CATEGORIES.some(category => 
-      Object.values(quantities[category.name] || {}).some(qty => qty > 0)
-    )
-    
-    if (!hasAnyProducts) {
+    if (!hasAnyOrders) {
       Swal.fire({
-        title: 'No hay productos',
-        text: 'Por favor selecciona al menos un producto para tu pedido',
+        title: 'No hay pedidos',
+        text: 'Según el stock ingresado, no hay productos para pedir. Verifica el stock actual de tus productos.',
         icon: 'warning',
         confirmButtonText: 'Entendido',
         confirmButtonColor: '#3498db'
@@ -227,26 +234,30 @@ const Home = () => {
     // Prepare data for context update
     const updateData = {
       orderDate,
-      customClientName: showCustomClientField ? customClientName : '',
-      isCustomClient: showCustomClientField,
       sortAlphabetically, // Pass sort preferences
-      // Map all quantities by category
+      tableSuffix, // Include table suffix for reference
+      // Map all stock actual by category
       ...PRODUCT_CATEGORIES.reduce((acc, category) => {
-        acc[`${category.name}Quantities`] = quantities[category.name] || {}
+        acc[`${category.name}StockActual`] = stockActual[category.name] || {}
         return acc
       }, {}),
-      // Prepare products by filtering those with quantity > 0
+      // Prepare products with calculated order quantities (only those > 0)
       products: PRODUCT_CATEGORIES.reduce((acc, category) => {
         const categoryProducts = products[category.name] || []
-        const categoryQuantities = quantities[category.name] || {}
+        const categoryStockActual = stockActual[category.name] || {}
         
         acc[category.name] = categoryProducts
-          .filter(item => categoryQuantities[item.id] > 0)
-          .map(item => ({ 
-            id: item.id, 
-            title: item.title, 
-            quantity: categoryQuantities[item.id] 
-          }))
+          .map(item => {
+            const orderQty = calculateOrderQuantity(category.name, item.id)
+            return orderQty > 0 ? { 
+              id: item.id, 
+              title: item.title, 
+              quantity: orderQty,
+              stock_actual: categoryStockActual[item.id] || 0,
+              stock_min: item.stock_min || 0
+            } : null
+          })
+          .filter(item => item !== null)
         
         return acc
       }, {})
@@ -260,7 +271,7 @@ const Home = () => {
   const renderProductSection = (category) => {
     const categoryName = category.name
     const categoryProducts = products[categoryName]
-    const categoryQuantities = quantities[categoryName] || {}
+    const categoryStockActual = stockActual[categoryName] || {}
     
     if (!categoryProducts || categoryProducts.length === 0) return null
     
@@ -274,7 +285,7 @@ const Home = () => {
       <div className="mb-6 text-center" key={categoryName}>
         <div className="flex flex-col items-center gap-2 mb-3">
           <h2 className="text-[#2c3e50] text-lg md:text-2xl pb-2 border-b-2 border-gray-100 text-center">
-            Selecciona los {category.displayName}
+            {category.displayName}
           </h2>
           {categoryName === 'helados' && (
             <button
@@ -290,32 +301,42 @@ const Home = () => {
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 max-w-3xl mx-auto">
-          {sortedProducts.map((product) => (
-            <div key={product.id} className="border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
-              <div className="flex-grow flex items-center justify-center">
-                <h3 className="text-base font-bold mb-2.5 text-center">{product.title}</h3>
+          {sortedProducts.map((product) => {
+            const currentStock = categoryStockActual[product.id] || 0
+            const orderQty = calculateOrderQuantity(categoryName, product.id)
+            
+            return (
+              <div key={product.id} className="border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
+                <div className="flex-grow flex items-center justify-center">
+                  <h3 className="text-base font-bold mb-2.5 text-center">{product.title}</h3>
+                </div>
+                
+                {/* Stock Actual Input */}
+                <div className="mt-auto">
+                  <label className="text-xs text-gray-600 block mb-1">Stock Actual:</label>
+                  <div className="flex items-center justify-center">
+                    <button 
+                      onClick={() => handleStockActualChange(categoryName, product.id, false)}
+                      className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-base"
+                      aria-label={`Disminuir stock de ${product.title}`}
+                    >
+                      -
+                    </button>
+                    <span className="mx-2 text-base font-bold w-8 text-center">
+                      {currentStock}
+                    </span>
+                    <button 
+                      onClick={() => handleStockActualChange(categoryName, product.id, true)}
+                      className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-base"
+                      aria-label={`Aumentar stock de ${product.title}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-center mt-auto pt-2">
-                <button 
-                  onClick={() => handleQuantityChange(categoryName, product.id, false)}
-                  className="w-9 h-9 rounded-full bg-red-600 text-white flex items-center justify-center text-lg"
-                  aria-label={`Disminuir cantidad de ${product.title}`}
-                >
-                  -
-                </button>
-                <span className="mx-3 text-lg font-bold w-6 text-center">
-                  {categoryQuantities[product.id] || 0}
-                </span>
-                <button 
-                  onClick={() => handleQuantityChange(categoryName, product.id, true)}
-                  className="w-9 h-9 rounded-full bg-green-600 text-white flex items-center justify-center text-lg"
-                  aria-label={`Aumentar cantidad de ${product.title}`}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     )
@@ -325,7 +346,7 @@ const Home = () => {
     <div className="w-full max-w-7xl mx-auto p-2.5 font-sans box-border">
       <div className="flex flex-col items-center mb-5">
         <img src={logoLaFe} alt="Logo La Fe" className="w-30 mb-2" width="120" height="120" />
-        <h1 className="text-xl md:text-3xl text-[#2c3e50] my-1 text-center">App Pedidos La Fe</h1>
+        <h1 className="text-xl md:text-3xl text-[#2c3e50] my-1 text-center">App Pedidos La Fe Con Stock</h1>
       </div>
       
       <div className="mb-6 text-center">
@@ -349,46 +370,24 @@ const Home = () => {
       
       <div className="mb-6 text-center">
         <h2 className="text-[#2c3e50] text-lg md:text-2xl mb-3 pb-2 border-b-2 border-gray-100 text-center">
-          Selecciona la Sucursal o Cliente
+          Selecciona la Sucursal
         </h2>
         <div className="flex flex-col items-center w-full">
           <label htmlFor="sucursalSelect" className="block mb-1 text-sm md:text-base font-bold text-[#2c3e50] text-center">
-            Sucursal o Cliente:
+            Sucursal:
           </label>
           <select 
             id="sucursalSelect"
             className="p-2.5 rounded border border-gray-300 w-auto min-w-[200px] max-w-full mb-5 text-base"
             value={selectedSucursal}
             onChange={handleSucursalChange}
-            aria-label="Seleccionar sucursal o cliente"
+            aria-label="Seleccionar sucursal"
           >
-            <option value="">Selecciona una opción</option>
-            {/* Add the custom client option at the top */}
-            <option value="custom">Clientes Varios</option>
-            {/* Separator for better visual grouping */}
-            <option disabled>──────────</option>
-            {/* Regular sucursales */}
+            <option value="">Selecciona una sucursal</option>
             {sucursales.map((sucursal) => (
               <option key={sucursal.id} value={sucursal.id}>{sucursal.title}</option>
             ))}
           </select>
-          
-          {/* Show custom client input field when 'Cliente Varios' is selected */}
-          {showCustomClientField && (
-            <div className="mb-5 w-full max-w-[300px]">
-              <label htmlFor="customClient" className="block mb-1 text-sm md:text-base font-bold text-[#2c3e50] text-center">
-                Nombre del Cliente:
-              </label>
-              <input
-                id="customClient"
-                type="text"
-                className="p-2.5 rounded border border-gray-300 w-full text-base font-sans"
-                value={customClientName}
-                onChange={handleCustomClientChange}
-                placeholder="Ingrese nombre del cliente"
-              />
-            </div>
-          )}
           {/* Observaciones field for Sucursal Centro */}
           {sucursales.find(s => s.id.toString() === selectedSucursal && s.title === 'Centro') && (
             <div className="mb-5 w-full max-w-[400px] mx-auto">
@@ -409,7 +408,14 @@ const Home = () => {
       </div>
       
       {/* Render product sections based on defined categories */}
-      {PRODUCT_CATEGORIES.map(category => renderProductSection(category))}
+      {PRODUCT_CATEGORIES.filter(category => {
+        // Only show "termicos" when CABA is selected
+        if (category.name === 'termicos') {
+          const selectedSuc = sucursales.find(s => s.id.toString() === selectedSucursal);
+          return selectedSuc?.title === 'CABA';
+        }
+        return true;
+      }).map(category => renderProductSection(category))}
       
       <div className="mb-6 text-center">
         <button 

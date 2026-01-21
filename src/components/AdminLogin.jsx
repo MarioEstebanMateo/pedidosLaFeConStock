@@ -27,7 +27,7 @@ const AdminLogin = () => {
     try {
       // Authenticate against admin table
       const { data, error } = await supabase
-        .from('admin')
+        .from('admin_centro')
         .select('*')
         .eq('username', username)
         .eq('password', password)

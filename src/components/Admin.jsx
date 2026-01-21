@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import logoLaFe from '../assets/img/logo-lafe.png';
 
 // Product categories configuration matching the existing system
+// Base names without suffix
 const PRODUCT_CATEGORIES = [
   { name: 'helados', displayName: 'Helados' },
   { name: 'palitos', displayName: 'Palitos' },
@@ -20,13 +21,21 @@ const PRODUCT_CATEGORIES = [
   { name: 'termicos', displayName: 'Térmicos' }
 ];
 
+// Available table suffixes
+const TABLE_SUFFIXES = [
+  { value: '_centro', label: 'Centro' },
+  { value: '_caba', label: 'CABA' }
+];
+
 const Admin = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [tableSuffix, setTableSuffix] = useState('_centro'); // Default to Centro
   const [currentCategory, setCurrentCategory] = useState(PRODUCT_CATEGORIES[0].name);
   const [products, setProducts] = useState([]);
   const [newProductTitle, setNewProductTitle] = useState('');
+  const [newProductStockMin, setNewProductStockMin] = useState(0);
   
   // Check authentication when component mounts
   useEffect(() => {
@@ -44,7 +53,7 @@ const Admin = () => {
           
           // Verify this username exists in the admin table
           const { data, error } = await supabase
-            .from('admin')
+            .from('admin_centro')
             .select('username')
             .eq('username', username)
             .single();
@@ -58,7 +67,7 @@ const Admin = () => {
           
           // Valid admin - proceed
           setIsAuthenticated(true);
-          loadProducts(currentCategory);
+          loadProducts(currentCategory, tableSuffix);
         } catch (error) {
           console.error('Error verifying session:', error);
           localStorage.removeItem('adminSession');
@@ -77,25 +86,26 @@ const Admin = () => {
     checkAuth();
   }, [navigate]);
   
-  // Load products when category changes (but only if authenticated)
+  // Load products when category or suffix changes (but only if authenticated)
   useEffect(() => {
     if (isAuthenticated) {
-      loadProducts(currentCategory);
+      loadProducts(currentCategory, tableSuffix);
     }
-  }, [currentCategory, isAuthenticated]);
+  }, [currentCategory, tableSuffix, isAuthenticated]);
   
-  const loadProducts = async (category) => {
+  const loadProducts = async (category, suffix) => {
     try {
       setIsLoading(true);
+      const tableName = category + suffix;
       const { data, error } = await supabase
-        .from(category)
+        .from(tableName)
         .select('*')
         .order('id', { ascending: true });
       
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      console.error(`Error loading ${category}:`, error);
+      console.error(`Error loading ${category}${suffix}:`, error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -122,16 +132,21 @@ const Admin = () => {
     
     try {
       setIsLoading(true);
+      const tableName = currentCategory + tableSuffix;
       
       const { data, error } = await supabase
-        .from(currentCategory)
-        .insert([{ title: newProductTitle.trim() }])
+        .from(tableName)
+        .insert([{ 
+          title: newProductTitle.trim(),
+          stock_min: newProductStockMin 
+        }])
         .select();
       
       if (error) throw error;
       
       setProducts([...products, data[0]]);
       setNewProductTitle('');
+      setNewProductStockMin(0);
       
       Swal.fire({
         icon: 'success',
@@ -152,33 +167,41 @@ const Admin = () => {
     }
   };
   
-  const handleEditProduct = async (id, currentTitle) => {
-    const { value: newTitle } = await Swal.fire({
+  const handleEditProduct = async (id, currentTitle, currentStockMin) => {
+    const { value: formValues } = await Swal.fire({
       title: 'Editar producto',
-      input: 'text',
-      inputValue: currentTitle,
-      inputPlaceholder: 'Ingresa el nuevo nombre',
+      html:
+        `<input id="swal-input-title" class="swal2-input" value="${currentTitle}" placeholder="Nombre del producto">` +
+        `<input id="swal-input-stock" type="number" class="swal2-input" value="${currentStockMin || 0}" placeholder="Stock mínimo">`,
+      focusConfirm: false,
       showCancelButton: true,
-      inputValidator: (value) => {
-        if (!value) {
-          return 'Debes ingresar un nombre';
+      preConfirm: () => {
+        const title = document.getElementById('swal-input-title').value;
+        const stockMin = document.getElementById('swal-input-stock').value;
+        if (!title) {
+          Swal.showValidationMessage('Debes ingresar un nombre');
         }
+        return { title, stockMin: parseInt(stockMin) || 0 };
       }
     });
     
-    if (newTitle && newTitle !== currentTitle) {
+    if (formValues && (formValues.title !== currentTitle || formValues.stockMin !== currentStockMin)) {
       try {
         setIsLoading(true);
+        const tableName = currentCategory + tableSuffix;
         
         const { error } = await supabase
-          .from(currentCategory)
-          .update({ title: newTitle })
+          .from(tableName)
+          .update({ 
+            title: formValues.title,
+            stock_min: formValues.stockMin 
+          })
           .eq('id', id);
         
         if (error) throw error;
         
         setProducts(products.map(product => 
-          product.id === id ? { ...product, title: newTitle } : product
+          product.id === id ? { ...product, title: formValues.title, stock_min: formValues.stockMin } : product
         ));
         
         Swal.fire({
@@ -215,9 +238,10 @@ const Admin = () => {
     if (result.isConfirmed) {
       try {
         setIsLoading(true);
+        const tableName = currentCategory + tableSuffix;
         
         const { error } = await supabase
-          .from(currentCategory)
+          .from(tableName)
           .delete()
           .eq('id', id);
         
@@ -283,9 +307,14 @@ const Admin = () => {
       
       <div className="bg-white rounded-lg shadow-md p-5 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-[#2c3e50]">
-            Gestión de {PRODUCT_CATEGORIES.find(c => c.name === currentCategory).displayName}
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-[#2c3e50]">
+              Gestión de {PRODUCT_CATEGORIES.find(c => c.name === currentCategory).displayName}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Sucursal: {TABLE_SUFFIXES.find(s => s.value === tableSuffix)?.label}
+            </p>
+          </div>
           
           <button 
             onClick={handleLogout}
@@ -293,6 +322,28 @@ const Admin = () => {
           >
             Cerrar Sesión
           </button>
+        </div>
+        
+        {/* Selector de Sucursal */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Seleccionar Sucursal:
+          </label>
+          <div className="flex gap-2">
+            {TABLE_SUFFIXES.map((suffix) => (
+              <button
+                key={suffix.value}
+                onClick={() => setTableSuffix(suffix.value)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  tableSuffix === suffix.value
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {suffix.label}
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="mb-6 overflow-x-auto">
@@ -321,6 +372,14 @@ const Admin = () => {
             className="flex-1 p-2 border border-gray-300 rounded"
             placeholder={`Nuevo ${PRODUCT_CATEGORIES.find(c => c.name === currentCategory).displayName.slice(0, -1)}...`}
           />
+          <input
+            type="number"
+            value={newProductStockMin}
+            onChange={(e) => setNewProductStockMin(parseInt(e.target.value) || 0)}
+            className="w-32 p-2 border border-gray-300 rounded"
+            placeholder="Stock mín"
+            min="0"
+          />
           <button
             onClick={handleAddProduct}
             className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded transition-colors"
@@ -335,6 +394,7 @@ const Admin = () => {
               <tr className="bg-gray-100">
                 <th className="py-3 px-4 text-left">ID</th>
                 <th className="py-3 px-4 text-left">Nombre</th>
+                <th className="py-3 px-4 text-center">Stock Mínimo</th>
                 <th className="py-3 px-4 text-center">Acciones</th>
               </tr>
             </thead>
@@ -344,9 +404,10 @@ const Admin = () => {
                   <tr key={product.id} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-4">{product.id}</td>
                     <td className="py-2 px-4">{product.title}</td>
+                    <td className="py-2 px-4 text-center">{product.stock_min || 0}</td>
                     <td className="py-2 px-4 text-center">
                       <button
-                        onClick={() => handleEditProduct(product.id, product.title)}
+                        onClick={() => handleEditProduct(product.id, product.title, product.stock_min)}
                         className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded mr-2 text-sm transition-colors"
                       >
                         Editar
@@ -362,7 +423,7 @@ const Admin = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="3" className="py-4 text-center text-gray-500">
+                  <td colSpan="4" className="py-4 text-center text-gray-500">
                     No hay productos en esta categoría
                   </td>
                 </tr>
