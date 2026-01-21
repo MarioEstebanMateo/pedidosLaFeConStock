@@ -86,6 +86,7 @@ Cuando termines de cargar TODO el stock:
 3. Verás un resumen completo de lo que vas a pedir
 
 **La aplicación calculará automáticamente:**
+
 - Stock Mínimo - Stock Actual = Cantidad a Pedir
 
 ---
@@ -101,6 +102,7 @@ En la pantalla de resumen verás:
 - **Columna derecha:** Resto de productos
 
 **Revisa cuidadosamente:**
+
 - ¿Las cantidades son correctas?
 - ¿Falta algo?
 - ¿Hay algo de más?
@@ -129,6 +131,7 @@ Cuando todo esté correcto:
 4. Solo debes presionar **Enviar** en WhatsApp
 
 El mensaje incluirá:
+
 - Fecha de entrega
 - Tu sucursal
 - Todos los productos con sus cantidades
@@ -149,12 +152,15 @@ Si prefieres tener un archivo PDF:
 ## ⚠️ ERRORES COMUNES Y SOLUCIONES
 
 ### "Selecciona una sucursal"
+
 **Solución:** Debes elegir Centro o CABA antes de continuar
 
 ### "No hay pedidos"
+
 **Solución:** Esto significa que no hay nada para pedir porque tu stock actual es igual o mayor al stock mínimo. Verifica si cargaste bien las cantidades.
 
 ### El botón "Revisar Pedido" está deshabilitado
+
 **Solución:** Primero debes seleccionar una sucursal
 
 ---
