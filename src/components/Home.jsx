@@ -133,6 +133,18 @@ const Home = () => {
     }))
   }
   
+  // Handler for direct input changes (for postres and termicos)
+  const handleStockActualDirectChange = (category, id, value) => {
+    const numValue = parseInt(value) || 0
+    setStockActual(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [id]: Math.max(0, numValue)
+      }
+    }))
+  }
+  
   // Calculate order quantity for a product (stock_min - stock_actual)
   const calculateOrderQuantity = (category, productId) => {
     const product = products[category]?.find(p => p.id === productId)
@@ -319,25 +331,54 @@ const Home = () => {
                 {/* Stock Actual Input */}
                 <div className="mt-auto">
                   <label className="text-xs text-gray-600 block mb-1">Stock Actual:</label>
-                  <div className="flex items-center justify-center">
-                    <button 
-                      onClick={() => handleStockActualChange(categoryName, product.id, false)}
-                      className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-base"
-                      aria-label={`Disminuir stock de ${product.title}`}
-                    >
-                      -
-                    </button>
-                    <span className="mx-2 text-base font-bold w-8 text-center">
-                      {currentStock}
-                    </span>
-                    <button 
-                      onClick={() => handleStockActualChange(categoryName, product.id, true)}
-                      className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-base"
-                      aria-label={`Aumentar stock de ${product.title}`}
-                    >
-                      +
-                    </button>
-                  </div>
+                  {(categoryName === 'postres' || categoryName === 'termicos') ? (
+                    // Editable input for postres and termicos
+                    <div className="flex items-center justify-center">
+                      <button 
+                        onClick={() => handleStockActualChange(categoryName, product.id, false)}
+                        className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-base"
+                        aria-label={`Disminuir stock de ${product.title}`}
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        value={currentStock}
+                        onChange={(e) => handleStockActualDirectChange(categoryName, product.id, e.target.value)}
+                        className="mx-2 text-base font-bold w-12 text-center border border-gray-300 rounded px-1"
+                        min="0"
+                        aria-label={`Stock actual de ${product.title}`}
+                      />
+                      <button 
+                        onClick={() => handleStockActualChange(categoryName, product.id, true)}
+                        className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-base"
+                        aria-label={`Aumentar stock de ${product.title}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : (
+                    // Original button-only interface for other categories
+                    <div className="flex items-center justify-center">
+                      <button 
+                        onClick={() => handleStockActualChange(categoryName, product.id, false)}
+                        className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-base"
+                        aria-label={`Disminuir stock de ${product.title}`}
+                      >
+                        -
+                      </button>
+                      <span className="mx-2 text-base font-bold w-8 text-center">
+                        {currentStock}
+                      </span>
+                      <button 
+                        onClick={() => handleStockActualChange(categoryName, product.id, true)}
+                        className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-base"
+                        aria-label={`Aumentar stock de ${product.title}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )
