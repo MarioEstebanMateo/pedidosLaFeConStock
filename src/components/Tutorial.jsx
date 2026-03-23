@@ -65,10 +65,10 @@ const Tutorial = () => {
           {/* Paso 4 */}
           <div className="border-l-4 border-[#315988] pl-4 md:pl-6">
             <h2 className="text-xl md:text-2xl font-bold text-[#2c3e50] mb-3">
-              4. Agregar Observaciones (Solo Centro)
+              4. Agregar Observaciones
             </h2>
             <p className="text-gray-700 text-sm md:text-base mb-2">
-              Si seleccionaste la sucursal Centro, verás un campo de observaciones donde puedes agregar notas adicionales sobre el pedido.
+              Verás un campo de observaciones donde puedes agregar notas adicionales sobre el pedido.
             </p>
           </div>
 
