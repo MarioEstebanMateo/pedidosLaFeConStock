@@ -872,39 +872,50 @@ const Admin = () => {
                 </thead>
                 <tbody>
                   {products.length > 0 ? (
-                    products.map((product) => (
-                      <tr key={product.id} className={`border-b hover:bg-gray-50 ${product.visible === false ? 'bg-gray-100' : ''}`}>
-                        <td className="py-2 px-4">{product.id}</td>
-                        <td className="py-2 px-4">{product.title}</td>
-                        <td className="py-2 px-4 text-center">{product.stock_min || 0}</td>
-                        <td className="py-2 px-4 text-center">
-                          <button
-                            onClick={() => handleToggleVisible(product.id, product.visible)}
-                            className={`py-1 px-3 rounded text-sm font-medium transition-colors ${
-                              product.visible !== false 
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                                : 'bg-red-100 text-red-700 hover:bg-red-200'
-                            }`}
-                          >
-                            {product.visible !== false ? '👁️ Visible' : '🚫 Oculto'}
-                          </button>
-                        </td>
-                        <td className="py-2 px-4 text-center">
-                          <button
-                            onClick={() => handleEditProduct(product.id, product.title, product.stock_min, product.visible)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded mr-2 text-sm transition-colors"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product.id, product.title)}
-                            className="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded text-sm transition-colors"
-                          >
-                            Eliminar
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    <>
+                      {products.map((product) => (
+                        <tr key={product.id} className={`border-b hover:bg-gray-50 ${product.visible === false ? 'bg-gray-100' : ''}`}>
+                          <td className="py-2 px-4">{product.id}</td>
+                          <td className="py-2 px-4">{product.title}</td>
+                          <td className="py-2 px-4 text-center">{product.stock_min || 0}</td>
+                          <td className="py-2 px-4 text-center">
+                            <button
+                              onClick={() => handleToggleVisible(product.id, product.visible)}
+                              className={`py-1 px-3 rounded text-sm font-medium transition-colors ${
+                                product.visible !== false 
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
+                            >
+                              {product.visible !== false ? '👁️ Visible' : '🚫 Oculto'}
+                            </button>
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            <button
+                              onClick={() => handleEditProduct(product.id, product.title, product.stock_min, product.visible)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded mr-2 text-sm transition-colors"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product.id, product.title)}
+                              className="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded text-sm transition-colors"
+                            >
+                              Eliminar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {currentCategory === 'helados' && products.length > 0 && (
+                        <tr className="bg-blue-100 border-t-2 border-blue-500 font-bold">
+                          <td colSpan="2" className="py-3 px-4 text-right">TOTAL STOCK MÍNIMO:</td>
+                          <td className="py-3 px-4 text-center text-blue-700">
+                            {products.reduce((sum, product) => sum + (product.stock_min || 0), 0)}
+                          </td>
+                          <td colSpan="2"></td>
+                        </tr>
+                      )}
+                    </>
                   ) : (
                     <tr>
                       <td colSpan="5" className="py-4 text-center text-gray-500">
