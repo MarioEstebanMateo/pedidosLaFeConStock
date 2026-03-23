@@ -1205,6 +1205,12 @@ const Admin = () => {
                                   >
                                     Ver Detalles
                                   </button>
+                                  <button
+                                    onClick={() => generarPDFPedido(pedido)}
+                                    className="bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded text-sm transition-colors ml-2"
+                                  >
+                                    PDF
+                                  </button>
                                 </td>
                               </tr>
                             );
