@@ -33,6 +33,32 @@ const formatDate = (dateString) => {
   return `${dayNames[date.getUTCDay()]} ${day} de ${monthNames[date.getUTCMonth()]} de ${year}`;
 };
 
+const formatDateTimeArgentina = (dateString) => {
+  if (!dateString) return 'Sin registrar';
+  try {
+    const date = new Date(dateString);
+    
+    if (isNaN(date.getTime())) {
+      return 'Fecha inválida';
+    }
+    
+    // Sumar 3 horas para mostrar hora correcta
+    date.setHours(date.getHours() + 3);
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  } catch (error) {
+    console.error('Error formatting date:', error, dateString);
+    return 'Error en fecha';
+  }
+};
+
 // Helper function to sort products by ID
 const sortProductsByID = (products) => {
   return [...products].sort((a, b) => a.id - b.id);
@@ -63,6 +89,8 @@ const Admin = () => {
   const [newProductStockMin, setNewProductStockMin] = useState(0);
   const [newProductVisible, setNewProductVisible] = useState(true);
   const [newSucursalTitle, setNewSucursalTitle] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   
   // Check authentication when component mounts
   useEffect(() => {
@@ -174,7 +202,7 @@ const Admin = () => {
       const { data, error } = await supabase
         .from('pedidos')
         .select('*')
-        .order('fecha_creacion', { ascending: false });
+        .order('fecha_creacion', { ascending: false, nullsLast: true });
       
       if (error) throw error;
       setPedidos(data || []);
@@ -186,6 +214,131 @@ const Admin = () => {
         icon: 'error',
         title: 'Error',
         text: 'No se pudieron cargar los pedidos'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const deletePedido = async (pedidoId) => {
+    try {
+      const result = await Swal.fire({
+        title: '¿Eliminar pedido?',
+        text: `¿Estás seguro de que deseas eliminar el pedido #${pedidoId}? Esta acción no se puede deshacer.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      });
+      
+      if (result.isConfirmed) {
+        setIsLoading(true);
+        const { error } = await supabase
+          .from('pedidos')
+          .delete()
+          .eq('id', pedidoId);
+        
+        if (error) throw error;
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Eliminado',
+          text: 'El pedido ha sido eliminado exitosamente'
+        });
+        
+        loadPedidos();
+      }
+    } catch (error) {
+      console.error('Error deleting pedido:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo eliminar el pedido'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const deletePedidosByDateRange = async () => {
+    if (!fechaDesde || !fechaHasta) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Fechas incompletas',
+        text: 'Por favor selecciona las fechas "desde" y "hasta"'
+      });
+      return;
+    }
+    
+    const desde = new Date(fechaDesde);
+    const hasta = new Date(fechaHasta);
+    
+    if (hasta < desde) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Fechas inválidas',
+        text: 'La fecha "Hasta" debe ser igual o posterior a la fecha "Desde"'
+      });
+      return;
+    }
+    
+    try {
+      const desdeConHora = new Date(fechaDesde + 'T00:00:00');
+      const hastaConHora = new Date(fechaHasta + 'T23:59:59');
+      
+      const pedidosEnRango = pedidos.filter(pedido => {
+        const fechaPedido = new Date(pedido.fecha_creacion || pedido.createdat);
+        return fechaPedido >= desdeConHora && fechaPedido <= hastaConHora;
+      });
+      
+      if (pedidosEnRango.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin resultados',
+          text: 'No hay pedidos en el rango de fechas seleccionado'
+        });
+        return;
+      }
+      
+      const result = await Swal.fire({
+        title: '¿Eliminar pedidos?',
+        html: `Se van a eliminar <strong>${pedidosEnRango.length}</strong> pedidos del ${fechaDesde} al ${fechaHasta}. Esta acción no se puede deshacer.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Sí, eliminar todos',
+        cancelButtonText: 'Cancelar'
+      });
+      
+      if (result.isConfirmed) {
+        setIsLoading(true);
+        
+        const { error } = await supabase
+          .from('pedidos')
+          .delete()
+          .in('id', pedidosEnRango.map(p => p.id));
+        
+        if (error) throw error;
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Eliminados',
+          text: `Se eliminaron ${pedidosEnRango.length} pedidos exitosamente`
+        });
+        
+        setFechaDesde('');
+        setFechaHasta('');
+        loadPedidos();
+      }
+    } catch (error) {
+      console.error('Error deleting pedidos by range:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron eliminar los pedidos'
       });
     } finally {
       setIsLoading(false);
@@ -1153,6 +1306,37 @@ const Admin = () => {
               </div>
             ) : (
               <div>
+                {/* Sección para eliminar por rango de fechas */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                  <h3 className="font-bold text-yellow-900 mb-3">Eliminar pedidos por rango de fechas</h3>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Desde:</label>
+                      <input
+                        type="date"
+                        value={fechaDesde}
+                        onChange={(e) => setFechaDesde(e.target.value)}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Hasta:</label>
+                      <input
+                        type="date"
+                        value={fechaHasta}
+                        onChange={(e) => setFechaHasta(e.target.value)}
+                        className="border border-gray-300 rounded px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={deletePedidosByDateRange}
+                      className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded text-sm transition-colors font-medium"
+                    >
+                      🗑️ Eliminar en rango
+                    </button>
+                  </div>
+                </div>
+                
                 {pedidos.length > 0 ? (
                   <>
                     <div className="overflow-x-auto">
@@ -1195,7 +1379,7 @@ const Admin = () => {
                             return (
                               <tr key={pedido.id} className="border-b hover:bg-gray-50">
                                 <td className="py-3 px-4">#{pedido.id}</td>
-                                <td className="py-3 px-4">{new Date(pedido.fecha_creacion).toLocaleDateString('es-AR')}</td>
+                                <td className="py-3 px-4">{formatDateTimeArgentina(pedido.fecha_creacion || pedido.createdat)}</td>
                                 <td className="py-3 px-4">{pedido.cliente_personalizado || pedido.sucursal}</td>
                                 <td className="py-3 px-4 text-center">{totalItems}</td>
                                 <td className="py-3 px-4 text-center">
@@ -1210,6 +1394,12 @@ const Admin = () => {
                                     className="bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded text-sm transition-colors ml-2"
                                   >
                                     PDF
+                                  </button>
+                                  <button
+                                    onClick={() => deletePedido(pedido.id)}
+                                    className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded text-sm transition-colors ml-2"
+                                  >
+                                    Eliminar
                                   </button>
                                 </td>
                               </tr>

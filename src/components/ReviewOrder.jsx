@@ -61,7 +61,18 @@ const ReviewOrder = () => {
   // Función para guardar el pedido en la base de datos
   const savePedidoToDatabase = async () => {
     try {
-      // Preparar los datos del pedido
+      // Preparar los datos del pedido con hora de Argentina
+      const now = new Date();
+      const argentinaTime = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+      const year = argentinaTime.getUTCFullYear();
+      const month = String(argentinaTime.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(argentinaTime.getUTCDate()).padStart(2, '0');
+      const hours = String(argentinaTime.getUTCHours()).padStart(2, '0');
+      const minutes = String(argentinaTime.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(argentinaTime.getUTCSeconds()).padStart(2, '0');
+      const fecha_creacion = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+
       const pedidoData = {
         fecha_entrega: orderData.orderDate,
         sucursal: orderData.sucursalTitle,
@@ -69,7 +80,7 @@ const ReviewOrder = () => {
         productos: orderData.products,
         observaciones: orderData.observaciones || null,
         estado: 'procesado',
-        fecha_creacion: new Date().toISOString()
+        fecha_creacion: fecha_creacion
       }
       
       // Guardar en Supabase
