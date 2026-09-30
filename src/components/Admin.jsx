@@ -70,6 +70,14 @@ const TABLE_SUFFIXES = [
   { value: '_caba', label: 'CABA' }
 ];
 
+const getSupabaseErrorMessage = (error, fallback) => {
+  if (error?.code === '42501' || error?.message?.toLowerCase().includes('row-level security')) {
+    return 'Supabase rechazó la operación por permisos RLS. Ejecuta la migración SQL de políticas del proyecto.';
+  }
+
+  return error?.message ? `${fallback}: ${error.message}` : fallback;
+};
+
 const Admin = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -618,6 +626,10 @@ const Admin = () => {
         .select();
       
       if (error) throw error;
+
+      if (!data?.[0]) {
+        throw new Error('Supabase no devolvió el producto creado. Revisa las políticas INSERT/SELECT.');
+      }
       
       setProducts([...products, data[0]]);
       setNewProductTitle('');
@@ -636,7 +648,7 @@ const Admin = () => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo agregar el producto'
+        text: getSupabaseErrorMessage(error, 'No se pudo agregar el producto')
       });
     } finally {
       setIsLoading(false);
@@ -694,7 +706,7 @@ const Admin = () => {
         Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: 'No se pudo actualizar el producto'
+          text: getSupabaseErrorMessage(error, 'No se pudo actualizar el producto')
         });
       } finally {
         setIsLoading(false);
@@ -730,7 +742,7 @@ const Admin = () => {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo cambiar la visibilidad del producto'
+        text: getSupabaseErrorMessage(error, 'No se pudo cambiar la visibilidad del producto')
       });
     } finally {
       setIsLoading(false);
